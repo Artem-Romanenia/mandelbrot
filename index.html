@@ -1,0 +1,11 @@
+<html>
+  <head>
+    <link data-trunk rel="scss" href="styles.scss"/>
+  </head>
+  <body>
+    <main id="main">
+    </main>
+    <link data-trunk rel="rust" href="Cargo.toml" data-wasm-opt="z" data-bin="main" data-type="main" />
+    <link data-trunk rel="rust" href="Cargo.toml" data-wasm-opt="z" data-bin="worker" data-type="worker" />
+  </body>
+</html>

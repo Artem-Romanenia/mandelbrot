@@ -1,0 +1,28 @@
+[package]
+name = "mandelbrot-web"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+wasm-bindgen = "0.2"
+leptos = { version = "0.5", features = ["csr"] }
+web-sys = { version = "0.3", features = ["OffscreenCanvasRenderingContext2d", "ImageData", "OffscreenCanvas"] }
+gloo-worker = "0.2"
+gloo-console = "0.2"
+log = "0.4"
+console_log = "1"
+console_error_panic_hook = "0.1.7"
+bnum = "0.10.0"
+num = "0.4"
+colorgrad = "0.6.2"
+serde = { version = "1.0", features = ["derive"] }
+serde-wasm-bindgen = "0.4"
+wasm-bindgen-futures = "0.4.39"
+
+[[bin]]
+name = "main"
+path = "src/main.rs"
+
+[[bin]]
+name = "worker"
+path = "src/bin/worker.rs"
