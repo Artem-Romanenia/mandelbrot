@@ -14,14 +14,14 @@ use web_sys::Url;
 use web_sys::Worker;
 
 fn worker_new(name: &str) -> Worker {
-    let origin = leptos::window()
+    let base = leptos::window()
         .location()
-        .origin()
+        .href()
         .unwrap();
 
     let script = Array::new();
     script.push(
-        &format!(r#"importScripts("{origin}/{name}.js");wasm_bindgen("{origin}/{name}_bg.wasm");"#)
+        &format!(r#"importScripts("{base}/{name}.js");wasm_bindgen("{base}/{name}_bg.wasm");"#)
             .into(),
     );
 
