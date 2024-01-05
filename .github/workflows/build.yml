@@ -21,12 +21,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
+    - name: Restore cache
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/bin
+          ~/.cargo/git
+          ~/.cargo/registry
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
     - name: Install dependencies
       run: |
           cargo install trunk || true \
             && rustup target add wasm32-unknown-unknown
     - name: Build
-      run: trunk build
+      run: trunk build --public-url ${{ github.event.repository.name }}
     - name: Setup Pages
       uses: actions/configure-pages@v2
     - name: Upload artifact
