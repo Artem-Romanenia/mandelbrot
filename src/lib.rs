@@ -1,36 +1,50 @@
 pub use plot_point_mod::PlotPoint;
 
-use num::Complex;
-use num::Float;
 use serde::Deserialize;
 use serde::Serialize;
 use web_sys::js_sys::Math;
 
-#[derive(Clone, Copy, Serialize, Deserialize)]
+#[derive(Clone)]
+pub struct Complex {
+    pub re: i64,
+    pub im: i64,
+}
+
+impl Complex {
+    fn new(re: i64, im: i64) -> Self {
+        Self { re, im }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct Ctx {
     pub win_height: usize,
     pub win_width: usize,
 
-    pub center_x: f64,
-    pub center_y: f64,
-    pub horizontal_span: f64,
-    pub vertical_span: f64,
+    pub center_x: i128,
+    pub center_y: i128,
+    pub horizontal_span: i128,
+    pub vertical_span: i128,
 
-    pub x_min: f64,
-    pub x_max: f64,
-    pub y_min: f64,
-    pub y_max: f64,
+    pub x_min: i128,
+    pub x_max: i128,
+    pub y_min: i128,
+    pub y_max: i128,
 
     pub max_iters: usize,
 
-    pub min_value: f64,
-    pub max_value: f64,
+    pub min_value: i128,
+    pub max_value: i128,
 
     pub chunk_size: usize,
     pub rows_processed: usize,
     pub total_rows_processed: usize,
 
     pub offset: usize,
+
+    pub brightness: f64,
+
+    pub needs_recalc: bool,
 }
 
 impl Default for Ctx {
@@ -47,50 +61,74 @@ impl Default for Ctx {
             y_min: Default::default(),
             y_max: Default::default(),
             max_iters: 500,
-            min_value: f64::max_value(),
+            min_value: i128::max_value(),
             max_value: Default::default(),
             chunk_size: 128,
             rows_processed: Default::default(),
             total_rows_processed: Default::default(),
             offset: Default::default(),
+            brightness: 0.6,
+            needs_recalc: true,
         }
     }
 }
 
 impl Ctx {
-    pub fn define_bounds(&mut self, center_x: f64, center_y: f64, horizontal_span: f64) {
-        self.center_x = center_x;
-        self.center_y = center_y;
-        self.horizontal_span = horizontal_span;
-        self.vertical_span = (horizontal_span * self.win_height as f64) / self.win_width as f64;
+    pub fn define_bounds_from(&mut self, x: usize, y: usize, w: usize, h: usize) {
+        let cx = self.get_x(x + w / 2);
+        let cy = self.get_y(y + h / 2);
+        let hs = self.horizontal_span * w as i128 / self.win_width as i128;
 
-        self.x_min = center_x - horizontal_span / 2.0;
-        self.x_max = self.x_min + horizontal_span;
-        self.y_min = center_y - self.vertical_span / 2.0;
+        self.define_bounds(cx, cy, hs as i64);
+    }
+
+    pub fn define_bounds(&mut self, center_x: i64, center_y: i64, horizontal_span: i64) {
+        self.center_x = center_x as i128;
+        self.center_y = center_y as i128;
+        self.horizontal_span = horizontal_span as i128;
+        self.vertical_span =
+            (self.horizontal_span * self.win_height as i128) / self.win_width as i128;
+
+        self.x_min = self.center_x - self.horizontal_span / 2;
+        self.x_max = self.x_min + self.horizontal_span;
+        self.y_min = self.center_y - self.vertical_span / 2;
         self.y_max = self.y_min + self.vertical_span;
     }
 
-    pub fn get_x(&self, x: usize) -> f64 {
-        let x_percent = x as f64 / self.win_width as f64;
-        self.x_min + (self.x_max - self.x_min) * x_percent
+    pub fn apply_changes(&mut self, other: &Ctx) {
+        self.min_value = other.min_value;
+        self.max_value = other.max_value;
+        self.brightness = other.brightness;
     }
 
-    pub fn get_y(&self, y: usize) -> f64 {
-        let y_percent = y as f64 / self.win_height as f64;
-        self.y_max - (self.y_max - self.y_min) * y_percent
+    pub fn reset_min_max(&mut self) {
+        self.needs_recalc = true;
+        self.min_value = i128::max_value();
+        self.max_value = Default::default();
     }
 
-    pub fn revert_y(&self, y: f64) -> (usize, Symmetry) {
-        let p = (self.y_max - y) * (self.win_height as f64 - 1.0) / (self.y_max - self.y_min);
-        let rem = p % 1.0;
+    pub fn get_x(&self, x: usize) -> i64 {
+        let x_percent = (x as f64 * 10000.0 / self.win_width as f64) as i128;
+        (self.x_min + (self.x_max - self.x_min) * x_percent / 10000) as i64
+    }
+
+    pub fn get_y(&self, y: usize) -> i64 {
+        let y_percent = (y as f64 * 10000.0 / self.win_height as f64) as i128;
+        (self.y_max - (self.y_max - self.y_min) * y_percent / 10000) as i64
+    }
+
+    pub fn revert_y(&self, y: i64) -> (usize, Symmetry) {
+        let p =
+            (self.y_max - y as i128) * (self.win_height as i128 - 1) / (self.y_max - self.y_min);
+        let rem = p % 1;
         let p1 = p - rem;
-        let third = 1.0 / 3.0;
+        let third = 1 / 3;
 
         (
             p1 as usize,
             if p < p1 + third {
                 Symmetry::OverTwo
-            } else if p > p1 + third && p < p1 + third * 2.0 {
+            } else if p > p1 + third && p < p1 + third * 2 {
                 Symmetry::OverOne
             } else {
                 Symmetry::Exact
@@ -98,7 +136,7 @@ impl Ctx {
         )
     }
 
-    pub fn get_coords(&self, x: usize, y: usize) -> (f64, f64) {
+    pub fn get_coords(&self, x: usize, y: usize) -> (i64, i64) {
         (self.get_x(x), self.get_y(y))
     }
 }
@@ -113,10 +151,10 @@ pub enum Symmetry {
 mod plot_point_mod {
     #[derive(Default, Clone, Copy)]
     pub struct PlotPoint {
-        val: f64,
+        val: i128,
         i: usize,
 
-        calc_val: Option<f64>,
+        calc_val: Option<i128>,
 
         pub filled: bool,
     }
@@ -129,13 +167,14 @@ mod plot_point_mod {
             new
         }
 
-        pub fn calculate(&mut self, val: f64, i: usize) {
+        pub fn calculate(&mut self, val: i128, i: usize) {
             if self.calc_val.is_some() {
                 panic!("Attempt to recalculate plot point.")
             }
             self.val = val;
             self.i = i;
-            self.calc_val = Some((i as f64 - val.log10().log2()).log10())
+            // self.calc_val = Some((i as f64 - val.log10().log2()).log10())
+            self.calc_val = Some(i as i128);
         }
 
         pub fn processed(&self) -> bool {
@@ -143,10 +182,10 @@ mod plot_point_mod {
         }
 
         pub fn stable(&self) -> bool {
-            self.calc_val.is_some() && self.val == 0.0
+            self.calc_val.is_some() && self.val == 0
         }
 
-        pub fn calculated_value(&self) -> f64 {
+        pub fn calculated_value(&self) -> i128 {
             self.calc_val
                 .expect("Method should not be called before the point is processed.")
         }
@@ -243,7 +282,7 @@ fn process_fast(ctx: &mut Ctx, plot: &mut [Vec<PlotPoint>], x: usize, y: usize) 
         {
             return cur_x;
         } else if !plot_point.stable() {
-            plot_point.calculate(0.0, ctx.max_iters);
+            plot_point.calculate(0, ctx.max_iters);
             plot_point.filled = true;
         }
 
@@ -321,14 +360,14 @@ fn process_point(ctx: &mut Ctx, plot: &mut [Vec<PlotPoint>], x: usize, y: usize)
     plot_point.stable()
 }
 
-fn calculate_point(ctx: &mut Ctx, plot_point: &mut PlotPoint, cx: f64, cy: f64) -> bool {
+fn calculate_point(ctx: &mut Ctx, plot_point: &mut PlotPoint, cx: i64, cy: i64) -> bool {
     if plot_point.processed() {
         return true;
     }
 
     mandelbrot_val_at_point(Complex::new(cx, cy), ctx.max_iters, plot_point);
 
-    let calc_value = plot_point.calculated_value();
+    let calc_value = plot_point.calculated_value() as i128;
 
     if calc_value < ctx.min_value {
         ctx.min_value = calc_value;
@@ -341,17 +380,27 @@ fn calculate_point(ctx: &mut Ctx, plot_point: &mut PlotPoint, cx: f64, cy: f64) 
     false
 }
 
-fn mandelbrot_val_at_point(c: Complex<f64>, max_iters: usize, p: &mut PlotPoint) {
+fn mandelbrot_val_at_point(c: Complex, max_iters: usize, p: &mut PlotPoint) {
+    // 4 * 2 ^ 60
+    static THRESHOLD: i128 = 4 << 60;
+
     let mut z = c.clone();
 
     for i in 0..=max_iters {
-        let n = z.re * z.re + z.im * z.im;
-        if n > 4.0 {
+        let re_sq = (z.re as i128).pow(2) >> 60;
+        let im_sq = (z.im as i128).pow(2) >> 60;
+
+        let n = re_sq + im_sq;
+        if n > THRESHOLD {
             p.calculate(n, i);
             return;
         }
-        z = z * z + c;
+        let re_im: i128 = (z.re as i128 * z.im as i128) >> 59;
+        z = Complex {
+            re: re_sq as i64 - im_sq as i64 + c.re,
+            im: re_im as i64 + c.im,
+        };
     }
 
-    p.calculate(0.0, max_iters)
+    p.calculate(0, max_iters);
 }

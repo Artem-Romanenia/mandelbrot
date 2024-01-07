@@ -6,29 +6,54 @@ body {
         top: 0;
         left: 0;
         display: flex;
-        padding: 25px;
 
         #canv {
             position: relative;
         }
-    
+
         #selection {
             position: absolute;
             border: 2px dotted white;
             z-index: 1000;
             background-color: #FFF1;
-            pointer-events:none;
+            pointer-events: none;
         }
-    
+
         canvas {
             background: black;
             box-shadow: 0 0 25px black;
         }
-        
+
         #ctrls {
             width: 300px;
             margin-left: 10px;
+            color: white;
+            font-size: 24px;
+            font-family: arial;
+
+            div {
+                margin-bottom: 10px;
+
+                label {
+                    margin-right: 10px;
+                }
+            }
+
+            input {
+                font-size: inherit;
+                font-family: inherit;
+                color: inherit;
+                width: 100px;
+                background: transparent;
+                border-bottom: 1px solid white;
+                border-top: none;
+                border-left: none;
+                border-right: none;
+            }
+
+            button {
+                font-size: inherit;
+            }
         }
     }
 }
-
